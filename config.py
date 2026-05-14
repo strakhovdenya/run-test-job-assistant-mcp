@@ -1,8 +1,20 @@
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 PROJECT_ROOT_ENV_VAR = "JOB_ASSISTANT_PROJECT_ROOT"
-PROJECT_ROOT = Path(os.environ[PROJECT_ROOT_ENV_VAR]).resolve()
+
+project_root_value = os.getenv(PROJECT_ROOT_ENV_VAR)
+if not project_root_value:
+    raise RuntimeError(
+        f"Missing environment variable {PROJECT_ROOT_ENV_VAR}. "
+        "Create a local .env file and set it to the path of your job-assistant repository."
+    )
+
+PROJECT_ROOT = Path(project_root_value).resolve()
 
 MAX_OUTPUT_CHARS = 16000
 TEST_TIMEOUT_SECONDS = 300
