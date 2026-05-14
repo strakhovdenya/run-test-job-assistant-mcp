@@ -2,17 +2,11 @@ import subprocess
 from typing import Literal
 
 from mcp.server.fastmcp import FastMCP
-from mcp.server.transport_security import TransportSecuritySettings
 
 from config import PROJECT_ROOT, MAX_OUTPUT_CHARS, TEST_TIMEOUT_SECONDS, ALLOWED_COMMANDS
 
 
-mcp = FastMCP(
-    "run-test-job-assistant-mcp",
-    transport_security=TransportSecuritySettings(
-        enable_dns_rebinding_protection=False,
-    ),
-)
+mcp = FastMCP("run-test-job-assistant-mcp")
 
 
 def trim_output(text: str, max_chars: int = MAX_OUTPUT_CHARS) -> str:
@@ -48,7 +42,7 @@ def run_command(command_name: str, cmd: list[str]) -> dict:
             "ok": result.returncode == 0,
             "exit_code": result.returncode,
             "command": " ".join(cmd),
-            "project_root": str(PROJECT_ROOT),
+            "project_root_configured": True,
             "stdout": trim_output(result.stdout),
             "stderr": trim_output(result.stderr),
         }
@@ -59,7 +53,7 @@ def run_command(command_name: str, cmd: list[str]) -> dict:
             "ok": False,
             "exit_code": None,
             "command": " ".join(cmd),
-            "project_root": str(PROJECT_ROOT),
+            "project_root_configured": True,
             "error": f"Command timed out after {TEST_TIMEOUT_SECONDS} seconds.",
             "stdout": trim_output(exc.stdout or ""),
             "stderr": trim_output(exc.stderr or ""),
@@ -71,7 +65,7 @@ def run_command(command_name: str, cmd: list[str]) -> dict:
             "ok": False,
             "exit_code": None,
             "command": " ".join(cmd),
-            "project_root": str(PROJECT_ROOT),
+            "project_root_configured": True,
             "error": repr(exc),
         }
 
