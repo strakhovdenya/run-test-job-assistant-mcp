@@ -2,11 +2,17 @@ import subprocess
 from typing import Literal
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 
 from config import PROJECT_ROOT, MAX_OUTPUT_CHARS, TEST_TIMEOUT_SECONDS, ALLOWED_COMMANDS
 
 
-mcp = FastMCP("run-test-job-assistant-mcp")
+mcp = FastMCP(
+    "run-test-job-assistant-mcp",
+    transport_security=TransportSecuritySettings(
+        enable_dns_rebinding_protection=False,
+    ),
+)
 
 
 def trim_output(text: str, max_chars: int = MAX_OUTPUT_CHARS) -> str:
