@@ -39,6 +39,22 @@ The target project is a Python monorepo with:
 
 ---
 
+## Configuration
+
+The MCP server needs to know where the local `job-assistant` repository is located.
+
+Set this environment variable before running the server:
+
+```text
+JOB_ASSISTANT_PROJECT_ROOT=
+```
+
+You can use `.env.example` as a reference for the required variable names.
+
+Do not commit your real `.env` file or local machine paths to the repository.
+
+---
+
 ## Available tools
 
 ### `run_tests`
@@ -97,6 +113,7 @@ This MCP server should follow a strict allowlist model:
 - no destructive commands
 - no access to secrets beyond what the test environment requires
 - commands should be explicit and auditable
+- local project paths should be provided through environment variables, not committed to the repository
 
 The server should only expose commands that are safe to run repeatedly during development and review.
 
