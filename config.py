@@ -1,6 +1,8 @@
+import os
 from pathlib import Path
 
-PROJECT_ROOT = Path(r"D:\projects_py\job-assistant").resolve()
+PROJECT_ROOT_ENV_VAR = "JOB_ASSISTANT_PROJECT_ROOT"
+PROJECT_ROOT = Path(os.environ[PROJECT_ROOT_ENV_VAR]).resolve()
 
 MAX_OUTPUT_CHARS = 16000
 TEST_TIMEOUT_SECONDS = 300
