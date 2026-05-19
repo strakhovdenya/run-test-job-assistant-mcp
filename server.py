@@ -3,6 +3,7 @@ import threading
 import time
 import uuid
 from datetime import datetime
+from pathlib import Path
 from typing import Literal
 
 from mcp.server.fastmcp import FastMCP
@@ -18,6 +19,10 @@ mcp = FastMCP(
     ),
 )
 
+
+SERVER_ROOT = Path(__file__).resolve().parent
+TEST_RUNNER_WIDGET_URI = "ui://widget/test-runner.html"
+TEST_RUNNER_WIDGET_PATH = SERVER_ROOT / "ui" / "test_runner_widget.html"
 
 TEST_RUNS: dict[str, dict] = {}
 TEST_RUNS_LOCK = threading.Lock()
@@ -337,6 +342,32 @@ def run_full_test_suite_background(run_id: str) -> None:
     append_run_log(run_id, progress_bar(total, total))
 
 
+@mcp.resource(TEST_RUNNER_WIDGET_URI, mime_type="text/html")
+def test_runner_widget() -> str:
+    """HTML widget for running the full Job Assistant test suite with progress."""
+    return TEST_RUNNER_WIDGET_PATH.read_text(encoding="utf-8")
+
+
+@mcp.tool()
+def open_test_runner_widget() -> dict:
+    """
+    Open the ChatGPT App UI widget for running the full Job Assistant test suite.
+
+    Use this when the user wants a visible progress bar, live-like logs, or a
+    button-based test runner inside ChatGPT.
+    """
+    return {
+        "ok": True,
+        "message": "Open the test runner widget to run the full suite with progress.",
+        "widget_uri": TEST_RUNNER_WIDGET_URI,
+        "_meta": {
+            "openai/outputTemplate": TEST_RUNNER_WIDGET_URI,
+            "openai/toolInvocation/invoking": "Opening test runner…",
+            "openai/toolInvocation/invoked": "Test runner ready",
+        },
+    }
+
+
 @mcp.tool()
 def run_tests(
     command: Literal[
@@ -367,9 +398,8 @@ def run_full_test_suite() -> dict:
 
     Stops after the first failing step.
 
-    For ChatGPT App UI progress/log polling, prefer:
-    - start_full_test_suite()
-    - get_test_suite_status(run_id)
+    Use this only when no ChatGPT App UI progress is needed. For a visible
+    progress bar/log widget, prefer open_test_runner_widget().
     """
     steps = [
         "test_db_up",
@@ -404,8 +434,8 @@ def start_full_test_suite() -> dict:
     """
     Start the full Job Assistant test suite in the background.
 
-    Use this from a ChatGPT App component when the user wants to run all tests
-    and see live-like progress/logs through polling.
+    Use this from the ChatGPT App test runner widget, not directly in normal
+    chat. The widget polls get_test_suite_status(run_id) and renders progress.
     """
     run_id = uuid.uuid4().hex
 
@@ -448,8 +478,8 @@ def get_test_suite_status(run_id: str) -> dict:
     """
     Get current status, progress and recent logs for a running test suite.
 
-    Use this from a ChatGPT App component to poll progress after calling
-    start_full_test_suite().
+    Use this from the ChatGPT App test runner widget to poll progress after
+    calling start_full_test_suite().
     """
     with TEST_RUNS_LOCK:
         run = TEST_RUNS.get(run_id)
