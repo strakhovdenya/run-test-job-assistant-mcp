@@ -538,15 +538,14 @@ function createServer() {
 const app = express();
 app.use(express.json({ limit: "10mb" }));
 
-const server = createServer();
 const transports = new Map();
 
 app.post("/mcp", async (req, res) => {
   try {
     const sessionId = req.headers["mcp-session-id"];
-    let transport = sessionId ? transports.get(sessionId) : undefined;
+    let session = sessionId ? transports.get(sessionId) : undefined;
 
-    if (!transport) {
+    if (!session) {
       if (!isInitializeRequest(req.body)) {
         res.status(400).json({
           jsonrpc: "2.0",
@@ -559,10 +558,14 @@ app.post("/mcp", async (req, res) => {
         return;
       }
 
-      transport = new StreamableHTTPServerTransport({
+      const sessionServer = createServer();
+      const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => randomUUID(),
         onsessioninitialized: (newSessionId) => {
-          transports.set(newSessionId, transport);
+          transports.set(newSessionId, {
+            server: sessionServer,
+            transport,
+          });
         },
       });
 
@@ -572,10 +575,11 @@ app.post("/mcp", async (req, res) => {
         }
       };
 
-      await server.connect(transport);
+      await sessionServer.connect(transport);
+      session = { server: sessionServer, transport };
     }
 
-    await transport.handleRequest(req, res, req.body);
+    await session.transport.handleRequest(req, res, req.body);
   } catch (error) {
     console.error("MCP POST error:", error);
     if (!res.headersSent) {
@@ -592,27 +596,41 @@ app.post("/mcp", async (req, res) => {
 });
 
 app.get("/mcp", async (req, res) => {
-  const sessionId = req.headers["mcp-session-id"];
-  const transport = sessionId ? transports.get(sessionId) : undefined;
+  try {
+    const sessionId = req.headers["mcp-session-id"];
+    const session = sessionId ? transports.get(sessionId) : undefined;
 
-  if (!transport) {
-    res.status(400).send("Invalid or missing session ID");
-    return;
+    if (!session) {
+      res.status(400).send("Invalid or missing session ID");
+      return;
+    }
+
+    await session.transport.handleRequest(req, res);
+  } catch (error) {
+    console.error("MCP GET error:", error);
+    if (!res.headersSent) {
+      res.status(500).send("Internal server error");
+    }
   }
-
-  await transport.handleRequest(req, res);
 });
 
 app.delete("/mcp", async (req, res) => {
-  const sessionId = req.headers["mcp-session-id"];
-  const transport = sessionId ? transports.get(sessionId) : undefined;
+  try {
+    const sessionId = req.headers["mcp-session-id"];
+    const session = sessionId ? transports.get(sessionId) : undefined;
 
-  if (!transport) {
-    res.status(400).send("Invalid or missing session ID");
-    return;
+    if (!session) {
+      res.status(400).send("Invalid or missing session ID");
+      return;
+    }
+
+    await session.transport.handleRequest(req, res);
+  } catch (error) {
+    console.error("MCP DELETE error:", error);
+    if (!res.headersSent) {
+      res.status(500).send("Internal server error");
+    }
   }
-
-  await transport.handleRequest(req, res);
 });
 
 app.get("/health", (_req, res) => {
@@ -624,6 +642,8 @@ app.get("/health", (_req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Job Assistant test runner app listening on http://127.0.0.1:${PORT}`);
+  console.log(
+    `Job Assistant test runner app listening on http://127.0.0.1:${PORT}`
+  );
   console.log(`MCP endpoint: http://127.0.0.1:${PORT}/mcp`);
 });
