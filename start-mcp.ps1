@@ -17,6 +17,47 @@ $PackageJson = Join-Path $AppsSdkDir "package.json"
 $NodeServer = Join-Path $AppsSdkDir "src\server.mjs"
 $EnvFile = Join-Path $Root ".env"
 
+function Import-DotEnvFile {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+
+    if (-not (Test-Path $Path)) {
+        return
+    }
+
+    Write-Host "Loading environment variables from .env..." -ForegroundColor Yellow
+
+    Get-Content $Path | ForEach-Object {
+        $Line = $_.Trim()
+
+        if (-not $Line) {
+            return
+        }
+
+        if ($Line.StartsWith("#")) {
+            return
+        }
+
+        $EqualsIndex = $Line.IndexOf("=")
+        if ($EqualsIndex -lt 1) {
+            return
+        }
+
+        $Name = $Line.Substring(0, $EqualsIndex).Trim()
+        $Value = $Line.Substring($EqualsIndex + 1).Trim()
+
+        $Value = $Value.Trim('"').Trim("'")
+
+        if ($Name) {
+            # Process-level environment variable. It is inherited by child PowerShell/npm/node processes,
+            # but it does not permanently modify the user's Windows environment.
+            [Environment]::SetEnvironmentVariable($Name, $Value, "Process")
+        }
+    }
+}
+
 if (-not (Test-Path $AppsSdkDir)) {
     Write-Host "ERROR: apps-sdk folder not found." -ForegroundColor Red
     Write-Host "Create the Apps SDK wrapper files first:" -ForegroundColor Yellow
@@ -36,26 +77,14 @@ if (-not (Test-Path $NodeServer)) {
     exit 1
 }
 
-# Load JOB_ASSISTANT_PROJECT_ROOT from .env if it is not already set in this PowerShell session.
-if (-not $env:JOB_ASSISTANT_PROJECT_ROOT -and (Test-Path $EnvFile)) {
-    $ProjectRootLine = Get-Content $EnvFile | Where-Object {
-        $_ -match "^\s*JOB_ASSISTANT_PROJECT_ROOT\s*="
-    } | Select-Object -First 1
-
-    if ($ProjectRootLine) {
-        $Value = ($ProjectRootLine -replace "^\s*JOB_ASSISTANT_PROJECT_ROOT\s*=\s*", "").Trim()
-        $Value = $Value.Trim('"').Trim("'")
-        if ($Value) {
-            $env:JOB_ASSISTANT_PROJECT_ROOT = $Value
-        }
-    }
-}
+# Load all variables from .env into this launcher process.
+# Child windows inherit these process-level variables automatically.
+Import-DotEnvFile -Path $EnvFile
 
 if (-not $env:JOB_ASSISTANT_PROJECT_ROOT) {
     Write-Host "ERROR: JOB_ASSISTANT_PROJECT_ROOT is not set." -ForegroundColor Red
-    Write-Host "Set it before running this launcher, for example:" -ForegroundColor Yellow
-    Write-Host '$env:JOB_ASSISTANT_PROJECT_ROOT="D:\projects_py\job-assistant"' -ForegroundColor White
-    Write-Host "Or add it to .env in this repository." -ForegroundColor Yellow
+    Write-Host "Add it to .env in this repository, for example:" -ForegroundColor Yellow
+    Write-Host "JOB_ASSISTANT_PROJECT_ROOT=D:\projects_py\job-assistant" -ForegroundColor White
     exit 1
 }
 
@@ -115,12 +144,13 @@ Write-Host "If ngrok says authentication failed, run once:" -ForegroundColor Yel
 Write-Host "ngrok config add-authtoken YOUR_NGROK_AUTHTOKEN" -ForegroundColor White
 Write-Host ""
 
-# Start ChatGPT-facing Node Apps SDK MCP server in separate PowerShell window
+# Start ChatGPT-facing Node Apps SDK MCP server in separate PowerShell window.
+# No manual `$env:...` assignment is injected here. The child process inherits variables loaded from .env.
 Write-Host "Starting ChatGPT Apps SDK MCP server in a new PowerShell window..." -ForegroundColor Green
 
+$AppsSdkDirForChild = $AppsSdkDir.Replace("'", "''")
 $ServerCommand = @"
-`$env:JOB_ASSISTANT_PROJECT_ROOT = "$env:JOB_ASSISTANT_PROJECT_ROOT"
-cd "$AppsSdkDir"
+Set-Location '$AppsSdkDirForChild'
 npm run dev
 "@
 
