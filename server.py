@@ -358,7 +358,7 @@ def run_full_test_suite_background(run_id: str) -> None:
 
 @mcp.resource(
     TEST_RUNNER_WIDGET_URI,
-    "Job Assistant test runner widget",
+    name="Job Assistant test runner widget",
     mime_type=TEST_RUNNER_WIDGET_MIME_TYPE,
 )
 def test_runner_widget() -> str:
