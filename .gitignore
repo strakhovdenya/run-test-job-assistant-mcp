@@ -20,3 +20,5 @@ __pycache__/
 htmlcov/
 
 *.log
+
+apps-sdk/node_modules
