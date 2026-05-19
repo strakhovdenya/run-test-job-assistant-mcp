@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Job Assistant Test Runner</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #ffffff;
+      --panel: #f6f7f9;
+      --panel-strong: #eef1f5;
+      --text: #111827;
+      --muted: #6b7280;
+      --border: #d9dee7;
+      --accent: #2563eb;
+      --accent-text: #ffffff;
+      --ok: #15803d;
+      --warn: #b45309;
+      --error: #b91c1c;
+      --mono-bg: #111827;
+      --mono-text: #e5e7eb;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0b1020;
+        --panel: #111827;
+        --panel-strong: #1f2937;
+        --text: #f9fafb;
+        --muted: #9ca3af;
+        --border: #374151;
+        --accent: #3b82f6;
+        --accent-text: #ffffff;
+        --ok: #22c55e;
+        --warn: #f59e0b;
+        --error: #ef4444;
+        --mono-bg: #030712;
+        --mono-text: #e5e7eb;
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 16px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .card {
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: var(--panel);
+      padding: 16px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+    }
+
+    .header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 750;
+      letter-spacing: -0.02em;
+    }
+
+    .subtitle {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    button {
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 9px 12px;
+      background: var(--panel-strong);
+      color: var(--text);
+      font-weight: 650;
+      cursor: pointer;
+    }
+
+    button.primary {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: var(--accent-text);
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin: 12px 0;
+    }
+
+    .metric {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--bg);
+      padding: 10px;
+      min-height: 70px;
+    }
+
+    .label {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+
+    .value {
+      font-size: 14px;
+      font-weight: 750;
+      overflow-wrap: anywhere;
+    }
+
+    .status-idle { color: var(--muted); }
+    .status-queued, .status-running { color: var(--warn); }
+    .status-passed { color: var(--ok); }
+    .status-failed { color: var(--error); }
+
+    .progress-wrap {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--bg);
+      padding: 12px;
+      margin: 12px 0;
+    }
+
+    .progress-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 8px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .bar-track {
+      width: 100%;
+      height: 14px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: var(--panel-strong);
+      border: 1px solid var(--border);
+    }
+
+    .bar-fill {
+      height: 100%;
+      width: 0%;
+      border-radius: 999px;
+      background: var(--accent);
+      transition: width 220ms ease;
+    }
+
+    .text-bar {
+      margin-top: 8px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+      color: var(--muted);
+      white-space: pre-wrap;
+    }
+
+    .logs {
+      border-radius: 14px;
+      background: var(--mono-bg);
+      color: var(--mono-text);
+      padding: 12px;
+      min-height: 220px;
+      max-height: 420px;
+      overflow: auto;
+      white-space: pre-wrap;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .error-box {
+      display: none;
+      margin: 10px 0;
+      padding: 10px;
+      border-radius: 12px;
+      border: 1px solid var(--error);
+      color: var(--error);
+      font-size: 13px;
+      white-space: pre-wrap;
+    }
+
+    @media (max-width: 720px) {
+      .header { flex-direction: column; }
+      .actions { justify-content: flex-start; }
+      .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="header">
+      <div>
+        <h1>Job Assistant Test Runner</h1>
+        <p class="subtitle">Runs Postgres, backend tests and frontend tests with progress polling.</p>
+      </div>
+      <div class="actions">
+        <button id="runBtn" class="primary">Run Full Test Suite</button>
+        <button id="refreshBtn" disabled>Refresh</button>
+        <button id="stopBtn" disabled>Stop polling</button>
+      </div>
+    </div>
+
+    <div id="errorBox" class="error-box"></div>
+
+    <section class="grid">
+      <div class="metric">
+        <div class="label">Status</div>
+        <div id="status" class="value status-idle">idle</div>
+      </div>
+      <div class="metric">
+        <div class="label">Current step</div>
+        <div id="currentStep" class="value">—</div>
+      </div>
+      <div class="metric">
+        <div class="label">Completed</div>
+        <div id="completed" class="value">0 / 3</div>
+      </div>
+      <div class="metric">
+        <div class="label">Run ID</div>
+        <div id="runId" class="value">—</div>
+      </div>
+    </section>
+
+    <section class="progress-wrap">
+      <div class="progress-header">
+        <span id="progressLabel">Progress</span>
+        <span id="progressPercent">0%</span>
+      </div>
+      <div class="bar-track">
+        <div id="barFill" class="bar-fill"></div>
+      </div>
+      <div id="textBar" class="text-bar">[░░░░░░░░░░░░░░░░░░░░░░░░] 0% (0/3)</div>
+    </section>
+
+    <section>
+      <div class="label">Logs</div>
+      <pre id="logs" class="logs">Ready. Click “Run Full Test Suite”.</pre>
+    </section>
+  </main>
+
+  <script>
+    const POLL_MS = 1000;
+    const DONE_STATUSES = new Set(["passed", "failed"]);
+
+    const runBtn = document.getElementById("runBtn");
+    const refreshBtn = document.getElementById("refreshBtn");
+    const stopBtn = document.getElementById("stopBtn");
+    const errorBox = document.getElementById("errorBox");
+    const statusEl = document.getElementById("status");
+    const currentStepEl = document.getElementById("currentStep");
+    const completedEl = document.getElementById("completed");
+    const runIdEl = document.getElementById("runId");
+    const progressLabelEl = document.getElementById("progressLabel");
+    const progressPercentEl = document.getElementById("progressPercent");
+    const barFillEl = document.getElementById("barFill");
+    const textBarEl = document.getElementById("textBar");
+    const logsEl = document.getElementById("logs");
+
+    let activeRunId = null;
+    let pollTimer = null;
+
+    function unwrapToolResult(result) {
+      if (!result) return {};
+      return result.structuredContent || result;
+    }
+
+    function showError(error) {
+      const message = error instanceof Error ? error.message : String(error);
+      errorBox.textContent = message;
+      errorBox.style.display = "block";
+    }
+
+    function clearError() {
+      errorBox.textContent = "";
+      errorBox.style.display = "none";
+    }
+
+    function percentFromData(data) {
+      const completed = Number(data.completed_steps || 0);
+      const total = Number(data.total_steps || 3);
+      if (!total) return 0;
+      return Math.max(0, Math.min(100, Math.round((completed / total) * 100)));
+    }
+
+    function setStatusClass(status) {
+      statusEl.className = "value";
+      statusEl.classList.add(`status-${status || "idle"}`);
+    }
+
+    function render(data) {
+      const status = data.status || "idle";
+      const completed = Number(data.completed_steps || 0);
+      const total = Number(data.total_steps || 3);
+      const percent = percentFromData(data);
+      const logs = Array.isArray(data.logs) ? data.logs : [];
+
+      statusEl.textContent = status;
+      setStatusClass(status);
+
+      currentStepEl.textContent = data.current_step || data.current_step_title || "—";
+      completedEl.textContent = `${completed} / ${total}`;
+      runIdEl.textContent = data.run_id || activeRunId || "—";
+      progressLabelEl.textContent = data.current_step_title || data.current_step || "Progress";
+      progressPercentEl.textContent = `${percent}%`;
+      barFillEl.style.width = `${percent}%`;
+      textBarEl.textContent =
+        data.progress_bar || "[░░░░░░░░░░░░░░░░░░░░░░░░] 0% (0/3)";
+      logsEl.textContent = logs.length ? logs.join("\n") : "No logs yet.";
+      logsEl.scrollTop = logsEl.scrollHeight;
+
+      if (data.run_id) activeRunId = data.run_id;
+
+      try {
+        window.openai?.setWidgetState?.({
+          runId: activeRunId,
+          status,
+          progressBar: data.progress_bar,
+          completedSteps: completed,
+          totalSteps: total,
+          logs,
+        });
+      } catch (_) {}
+    }
+
+    function setPolling(enabled) {
+      refreshBtn.disabled = !activeRunId;
+      stopBtn.disabled = !enabled;
+      runBtn.disabled = enabled;
+    }
+
+    function stopPolling() {
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+      setPolling(false);
+    }
+
+    async function callTool(name, args) {
+      if (!window.openai?.callTool) {
+        throw new Error("window.openai.callTool is not available. Open this inside ChatGPT as an App widget.");
+      }
+
+      return unwrapToolResult(await window.openai.callTool(name, args || {}));
+    }
+
+    async function refreshStatus() {
+      if (!activeRunId) return;
+
+      const data = await callTool("get_test_suite_status", {
+        run_id: activeRunId,
+      });
+
+      render(data);
+
+      if (DONE_STATUSES.has(data.status)) {
+        stopPolling();
+      }
+    }
+
+    function startPolling() {
+      if (pollTimer) clearInterval(pollTimer);
+
+      setPolling(true);
+
+      pollTimer = setInterval(() => {
+        refreshStatus().catch(showError);
+      }, POLL_MS);
+    }
+
+    async function startRun() {
+      clearError();
+
+      runBtn.disabled = true;
+      logsEl.textContent = "Starting full test suite…";
+
+      const data = await callTool("start_full_test_suite", {});
+      activeRunId = data.run_id;
+
+      render(data);
+      startPolling();
+
+      await refreshStatus();
+    }
+
+    runBtn.addEventListener("click", () => {
+      startRun().catch((error) => {
+        stopPolling();
+        showError(error);
+      });
+    });
+
+    refreshBtn.addEventListener("click", () => {
+      clearError();
+      refreshStatus().catch(showError);
+    });
+
+    stopBtn.addEventListener("click", stopPolling);
+
+    (function restoreState() {
+      const state = window.openai?.widgetState;
+      if (!state) return;
+
+      if (state.runId) {
+        activeRunId = state.runId;
+        refreshBtn.disabled = false;
+      }
+
+      render({
+        run_id: state.runId,
+        status: state.status || "idle",
+        progress_bar: state.progressBar,
+        completed_steps: state.completedSteps || 0,
+        total_steps: state.totalSteps || 3,
+        logs: state.logs || [],
+      });
+
+      if (activeRunId && !DONE_STATUSES.has(state.status)) {
+        startPolling();
+        refreshStatus().catch(showError);
+      }
+    })();
+  </script>
+</body>
+</html>
