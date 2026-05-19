@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
+import mcp.types as types
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 
@@ -23,9 +24,22 @@ mcp = FastMCP(
 SERVER_ROOT = Path(__file__).resolve().parent
 TEST_RUNNER_WIDGET_URI = "ui://widget/test-runner.html"
 TEST_RUNNER_WIDGET_PATH = SERVER_ROOT / "ui" / "test_runner_widget.html"
+TEST_RUNNER_WIDGET_MIME_TYPE = "text/html+skybridge"
 
 TEST_RUNS: dict[str, dict] = {}
 TEST_RUNS_LOCK = threading.Lock()
+
+
+def test_runner_widget_meta(invocation: str) -> dict:
+    """Metadata that tells ChatGPT to render the test runner widget."""
+    return {
+        "ui": {"resourceUri": TEST_RUNNER_WIDGET_URI},
+        "openai/outputTemplate": TEST_RUNNER_WIDGET_URI,
+        "openai/widgetAccessible": True,
+        "openai/toolInvocation/invoking": "Opening test runner…",
+        "openai/toolInvocation/invoked": "Test runner ready",
+        "invocation": invocation,
+    }
 
 
 def trim_output(text: str, max_chars: int = MAX_OUTPUT_CHARS) -> str:
@@ -342,30 +356,39 @@ def run_full_test_suite_background(run_id: str) -> None:
     append_run_log(run_id, progress_bar(total, total))
 
 
-@mcp.resource(TEST_RUNNER_WIDGET_URI, mime_type="text/html")
+@mcp.resource(
+    TEST_RUNNER_WIDGET_URI,
+    "Job Assistant test runner widget",
+    mime_type=TEST_RUNNER_WIDGET_MIME_TYPE,
+)
 def test_runner_widget() -> str:
     """HTML widget for running the full Job Assistant test suite with progress."""
     return TEST_RUNNER_WIDGET_PATH.read_text(encoding="utf-8")
 
 
 @mcp.tool()
-def open_test_runner_widget() -> dict:
+def open_test_runner_widget() -> types.CallToolResult:
     """
     Open the ChatGPT App UI widget for running the full Job Assistant test suite.
 
     Use this when the user wants a visible progress bar, live-like logs, or a
     button-based test runner inside ChatGPT.
     """
-    return {
-        "ok": True,
-        "message": "Open the test runner widget to run the full suite with progress.",
-        "widget_uri": TEST_RUNNER_WIDGET_URI,
-        "_meta": {
-            "openai/outputTemplate": TEST_RUNNER_WIDGET_URI,
-            "openai/toolInvocation/invoking": "Opening test runner…",
-            "openai/toolInvocation/invoked": "Test runner ready",
+    return types.CallToolResult(
+        content=[
+            types.TextContent(
+                type="text",
+                text="Test runner widget is ready. Use the button in the widget to run the full suite with progress.",
+            )
+        ],
+        structuredContent={
+            "ok": True,
+            "widget_uri": TEST_RUNNER_WIDGET_URI,
+            "message": "Open the test runner widget to run the full suite with progress.",
         },
-    }
+        _meta=test_runner_widget_meta("open_test_runner_widget"),
+        isError=False,
+    )
 
 
 @mcp.tool()
