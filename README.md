@@ -16,6 +16,8 @@ It allows an AI assistant to:
 - run backend tests
 - run frontend tests
 - run the full project test suite
+- start a full test suite run in the background
+- poll full-suite progress and logs from a ChatGPT App UI
 
 The server is intentionally narrow in scope. It is not a general shell runner and should not expose arbitrary command execution.
 
@@ -86,7 +88,7 @@ uv run --project apps/frontend --no-sync pytest tests/frontend
 
 ### `run_full_test_suite`
 
-Runs the complete project test suite in order:
+Runs the complete project test suite synchronously in order:
 
 1. Start PostgreSQL
 2. Run backend tests
@@ -100,6 +102,107 @@ Expected command sequence:
 docker compose up -d postgres
 uv run --project apps/backend --no-sync pytest tests/backend
 uv run --project apps/frontend --no-sync pytest tests/frontend
+```
+
+This tool returns only when the suite has finished. For a ChatGPT App UI with progress/log polling, use `start_full_test_suite` and `get_test_suite_status` instead.
+
+---
+
+### `start_full_test_suite`
+
+Starts the complete project test suite in a background thread and immediately returns a `run_id`.
+
+Use this from a ChatGPT App component when the user wants to see progress while the suite is running.
+
+Example response:
+
+```json
+{
+  "ok": true,
+  "run_id": "abc123",
+  "status": "queued",
+  "message": "Full test suite started.",
+  "progress_bar": "[░░░░░░░░░░░░░░░░░░░░░░░░] 0% (0/3)"
+}
+```
+
+---
+
+### `get_test_suite_status`
+
+Returns current progress, status and recent logs for a background full-suite run.
+
+Arguments:
+
+| Argument | Description |
+| --- | --- |
+| `run_id` | ID returned by `start_full_test_suite` |
+
+Possible statuses:
+
+| Status | Meaning |
+| --- | --- |
+| `queued` | Run was created but has not started yet |
+| `running` | A suite step is currently executing |
+| `passed` | All suite steps passed |
+| `failed` | A suite step failed and the suite stopped |
+
+Example response:
+
+```json
+{
+  "ok": true,
+  "run_id": "abc123",
+  "status": "running",
+  "current_step": "test_backend",
+  "current_step_title": "Run backend tests",
+  "completed_steps": 1,
+  "total_steps": 3,
+  "progress_bar": "[████████░░░░░░░░░░░░░░░░] 33% (1/3)",
+  "failed_step": null,
+  "logs": [
+    "12:00:01 | 🚀 Full test suite started",
+    "12:00:02 | ▶️ Step 2/3 started: test_backend",
+    "12:00:07 | ⏳ test_backend is still running... 5s"
+  ],
+  "results": []
+}
+```
+
+---
+
+## ChatGPT App progress pattern
+
+ChatGPT does not stream arbitrary long-running tool logs directly into the chat message while one tool is still running.
+
+For app-style progress, use polling:
+
+1. The UI calls `start_full_test_suite`.
+2. The tool returns a `run_id` quickly.
+3. The UI calls `get_test_suite_status` every 1-2 seconds.
+4. The UI renders `status`, `progress_bar` and `logs`.
+5. Polling stops when `status` is `passed` or `failed`.
+
+Minimal browser-side sketch:
+
+```js
+const start = await window.openai.callTool("start_full_test_suite", {});
+const runId = start.structuredContent?.run_id ?? start.run_id;
+
+const timer = setInterval(async () => {
+  const status = await window.openai.callTool("get_test_suite_status", {
+    run_id: runId,
+  });
+
+  const data = status.structuredContent ?? status;
+
+  renderProgress(data.progress_bar);
+  renderLogs(data.logs);
+
+  if (["passed", "failed"].includes(data.status)) {
+    clearInterval(timer);
+  }
+}, 1000);
 ```
 
 ---
@@ -127,6 +230,7 @@ An AI assistant can use this MCP server while helping with the `job-assistant` p
 - after changing frontend code, run frontend tests
 - before opening or reviewing a pull request, run the full suite
 - when debugging CI failures, reproduce the failing test command locally
+- in a ChatGPT App, show a progress panel for a background full-suite run
 
 Example assistant workflow:
 
@@ -137,6 +241,16 @@ Example assistant workflow:
 4. Read the test output
 5. Suggest or apply fixes
 6. Re-run the relevant command
+```
+
+Example ChatGPT App workflow:
+
+```text
+1. User clicks Run Full Test Suite
+2. App calls start_full_test_suite
+3. App polls get_test_suite_status(run_id)
+4. App renders progress/logs
+5. App shows final passed/failed state
 ```
 
 ---
